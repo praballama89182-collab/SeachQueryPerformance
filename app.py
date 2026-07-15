@@ -5,16 +5,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ---------------------------------------------------------------------------------
-# 🎨 BRAND GRAPHICS, STYLING & PROFESSIONAL COLOR GRADING
+# 🎨 GLOBAL THEME & PALETTE SETUP
 # ---------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="MerchantSpring | Advanced Amazon SQP Insights Engine",
+    page_title="MerchantSpring | Advanced Amazon SQP & Catalog Engine",
     page_icon="🦅",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Color Grading Palette from Asset Specification
 HEX_BG = "#FBFBFC"
 HEX_LIGHT_BLUE = "#D5DEE7"
 HEX_DARK_SLATE = "#3A414B"
@@ -58,99 +57,95 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------------
-# ⚙️ ROBUST DATA ENGINE & PORTFOLIO INTELLIGENCE PIPELINE
+# ⚙️ ROBUST DATA ENGINES
 # ---------------------------------------------------------------------------------
-def process_amazon_sqp_data(file_obj):
-    # Read CSV skipping Amazon's metadata metadata header row
+def process_sqp_data(file_obj):
     df = pd.read_csv(file_obj, skiprows=1)
-    
-    # Cast all numerical metrics cleanly to prevent aggregation breaks
     numeric_fields = [
         'Search Query Volume', 'Impressions: Total Count', 'Impressions: Brand Count', 'Impressions: Brand Share %',
         'Clicks: Total Count', 'Clicks: Click Rate %', 'Clicks: Brand Count', 'Clicks: Brand Share %',
         'Clicks: Price (Median)', 'Clicks: Brand Price (Median)', 'Cart Adds: Total Count', 'Cart Adds: Brand Count',
         'Cart Adds: Brand Share %', 'Purchases: Total Count', 'Purchases: Purchase Rate %', 'Purchases: Brand Count',
         'Purchases: Brand Share %', 'Purchases: Price (Median)', 'Purchases: Brand Price (Median)',
-        'Clicks: Same Day Shipping Speed', 'Clicks: 1D Shipping Speed', 'Clicks: 2D Shipping Speed',
-        'Cart Adds: Same Day Shipping Speed', 'Cart Adds: 1D Shipping Speed', 'Cart Adds: 2D Shipping Speed',
-        'Purchases: Same Day Shipping Speed', 'Purchases: 1D Shipping Speed', 'Purchases: 2D Shipping Speed'
+        'Clicks: Same Day Shipping Speed', 'Clicks: 1D Shipping Speed', 'Clicks: 2D Shipping Speed'
     ]
     for field in numeric_fields:
         if field in df.columns:
             df[field] = pd.to_numeric(df[field], errors='coerce').fillna(0)
             
-    # Intent/Portfolio Segment Mapping Engine
-    def assign_portfolio_segment(query):
+    def assign_segment(query):
         query = str(query).lower()
-        if 'kelp' in query:
-            return 'Kelp Cleanse Line'
-        elif 'oil' in query or 'omega' in query:
-            return 'Oils & Omega Supplements'
-        elif 'vitamin' in query or 'multivitamin' in query:
-            return 'Vitamins & Minerals'
-        else:
-            return 'General Category Terms'
-
-    df['Portfolio Segment'] = df['Search Query'].apply(assign_portfolio_segment)
+        if 'kelp' in query: return 'Kelp Cleanse Line'
+        elif 'oil' in query or 'omega' in query: return 'Oils & Omega Supplements'
+        elif 'vitamin' in query or 'multivitamin' in query: return 'Vitamins & Minerals'
+        else: return 'General Category Terms'
+        
+    df['Portfolio Segment'] = df['Search Query'].apply(assign_segment)
     df['Price_Premium_vs_Market'] = df['Clicks: Brand Price (Median)'] - df['Clicks: Price (Median)']
-    
-    # Calculate Custom E-Commerce Progression Rates
     df['Brand_CTR'] = np.where(df['Impressions: Brand Count'] > 0, (df['Clicks: Brand Count'] / df['Impressions: Brand Count']) * 100, 0)
-    df['Brand_Click_to_Cart_Rate'] = np.where(df['Clicks: Brand Count'] > 0, (df['Cart Adds: Brand Count'] / df['Clicks: Brand Count']) * 100, 0)
     df['Brand_Cart_to_Purchase_Rate'] = np.where(df['Cart Adds: Brand Count'] > 0, (df['Purchases: Brand Count'] / df['Cart Adds: Brand Count']) * 100, 0)
-    
+    return df
+
+def process_catalog_data(file_obj):
+    df = pd.read_csv(file_obj, skiprows=1)
+    numeric_fields = [
+        'Impressions: Impressions', 'Clicks: Clicks', 'Clicks: Click Rate (CTR)',
+        'Cart Adds: Cart Adds', 'Purchases: Purchases', 'Purchases: Search Traffic Sales',
+        'Purchases: Conversion Rate %', 'Impressions: Price (Median)'
+    ]
+    for field in numeric_fields:
+        if field in df.columns:
+            df[field] = pd.to_numeric(df[field], errors='coerce').fillna(0)
     return df
 
 # ---------------------------------------------------------------------------------
 # 🎛️ SIDEBAR CONTROL FRAMEWORK
 # ---------------------------------------------------------------------------------
-st.sidebar.markdown(f"<h2 style='color: {HEX_DEEP_BLUE}; margin-top: 0;'>🦅 Control Center</h2>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<h2 style='color: {HEX_DEEP_BLUE}; margin-top: 0;'>📥 Data Control</h2>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
-uploaded_file = st.sidebar.file_uploader(
-    "📤 Drop Amazon SQP CSV Report", 
-    type=["csv"],
-    help="Directly drag and drop your raw Amazon Search Query Performance Brand View report here."
-)
+sqp_file = st.sidebar.file_uploader("1️⃣ Upload Brand SQP CSV Report", type=["csv"])
+catalog_file = st.sidebar.file_uploader("2️⃣ Upload Catalog Performance CSV Report", type=["csv"])
 
-if not uploaded_file:
-    st.info("💡 **Dashboard Engine Parked:** Please drag and drop your raw Amazon SQP CSV file into the sidebar uploader tool to activate the full 10-point analysis interface.")
+if not sqp_file or not catalog_file:
+    st.info("👋 **Console Parked:** Please drag and drop both your raw Amazon Search Query Performance Report and the Search Catalog Performance Report into the sidebar upload forms to launch the unified analysis.")
     st.stop()
 
-# Load Core Cleaned Data Frame
-df = process_amazon_sqp_data(uploaded_file)
+# Load DataFrames
+df_sqp = process_sqp_data(sqp_file)
+df_cat = process_catalog_data(catalog_file)
 
 # Global Filters
 st.sidebar.markdown("### 🔍 Live Scope Filters")
-vol_threshold = st.sidebar.slider("Minimum Search Volume Filter", int(df['Search Query Volume'].min()), int(df['Search Query Volume'].max()), 100)
-filtered_df = df[df['Search Query Volume'] >= vol_threshold]
+vol_threshold = st.sidebar.slider("Minimum Search Volume", int(df_sqp['Search Query Volume'].min()), int(df_sqp['Search Query Volume'].max()), 100)
+filtered_sqp = df_sqp[df_sqp['Search Query Volume'] >= vol_threshold]
 
 # ---------------------------------------------------------------------------------
-# 🏆 EXECUTIVE INTERFACE HEADER
+# 🏆 MASTER EXECUTIVE INTERFACE HEADER
 # ---------------------------------------------------------------------------------
-st.title("🏆 Amazon Search Query Performance Master Board")
-st.markdown("### First-Party Brand Analytics Funnel & Market Share Control Center")
+st.title("🦅 Multi-Dimensional Marketplace Performance Console")
+st.markdown("### First-Party Brand Analytics Intersecting Keyword Funnels & ASIN Performance Matrices")
 st.markdown("---")
 
-# Distinct titles for all analysis sections split perfectly into structural tabs
+# Clean, descriptive titled sections split across clean functional tabs
 tabs = st.tabs([
-    "📈 1. Portfolio Market Share",
-    "🎯 2. Sales Drivers & SEO Targets",
+    "📊 1. Macro Portfolio Market Share",
+    "🎯 2. Sales Drivers & SEO Strongholds",
     "🚀 3. PPC Conquesting Opportunities",
-    "🚨 4. Listing CTR Friction",
-    "🛒 5. Checkout Conversion Gaps",
-    "🚚 6. Supply Chain Logistics Speed"
+    "🚨 4. Listing CTR Friction Diagnostics",
+    "🛒 5. Checkout Conversion Leakage",
+    "📦 6. ASIN Catalog Performance Explorer",
+    "🚚 7. Fulfillment Logistics Speeds"
 ])
 
 # ---------------------------------------------------------------------------------
-# TAB 1: BRAND MARKET POSITIONING
+# TAB 1: MACRO PORTFOLIO MARKET SHARE
 # ---------------------------------------------------------------------------------
 with tabs[0]:
-    st.markdown("<span class='usecase-tag'>Use Case 7 & 10: Market Share & Business Intelligence</span>", unsafe_allow_html=True)
-    st.subheader("🪐 Portfolio Share Mapping by Intent Segment")
+    st.markdown("<span class='usecase-tag'>Use Case 7 & 10: Market Share Monitoring & Product Development Strategy</span>", unsafe_allow_html=True)
+    st.subheader("🪐 Segment-Level Share Mapping by Market Intent Clusters")
     
-    # Generate Cluster Aggregations
-    seg_perf = filtered_df.groupby('Portfolio Segment').agg({
+    seg_perf = filtered_sqp.groupby('Portfolio Segment').agg({
         'Search Query Volume': 'sum',
         'Impressions: Brand Count': 'sum',
         'Impressions: Total Count': 'sum',
@@ -171,20 +166,20 @@ with tabs[0]:
 
     with col_s1:
         st.markdown(f"""<div class='kpi-card'>
-            <h4>Kelp Category Dominance</h4>
+            <h4>Kelp Segment Dominance</h4>
             <h2>{get_segment_share('Kelp Cleanse Line'):.2f}%</h2>
             <p style='color: green;'>Primary Core Profit Engine</p>
         </div>""", unsafe_allow_html=True)
     with col_s2:
         st.markdown(f"""<div class='kpi-card' style='border-top-color: {HEX_VIBRANT_BLUE};'>
-            <h4>Oils & Omegas Share Capture</h4>
+            <h4>Oils & Omegas Capture Share</h4>
             <h2>{get_segment_share('Oils & Omega Supplements'):.2f}%</h2>
-            <p style='color: red;'>Market Conquesting Vacuum</p>
+            <p style='color: red;'>Market Conquesting Opportunity</p>
         </div>""", unsafe_allow_html=True)
     with col_s3:
         st.markdown(f"""<div class='kpi-card' style='border-top-color: {HEX_DARK_SLATE};'>
             <h4>Total Brand Orders Captured</h4>
-            <h2>{int(filtered_df['Purchases: Brand Count'].sum())} Units</h2>
+            <h2>{int(filtered_sqp['Purchases: Brand Count'].sum())} Units</h2>
             <p style='color: {HEX_DEEP_BLUE};'>Across all Indexed Terms</p>
         </div>""", unsafe_allow_html=True)
         
@@ -205,43 +200,43 @@ with tabs[0]:
             y=seg_perf['Purchases: Total Count'] - seg_perf['Purchases: Brand Count'],
             marker_color=HEX_LIGHT_BLUE
         ))
-        fig_pos.update_layout(barmode='stack', title="Absolute Brand Performance vs Competitor Share", template="plotly_white")
+        fig_pos.update_layout(barmode='stack', title="Absolute Brand Performance Share vs Competitors", template="plotly_white")
         st.plotly_chart(fig_pos, use_container_width=True)
         
     with col_right:
-        tot_pur = filtered_df['Purchases: Total Count'].sum()
-        br_pur = filtered_df['Purchases: Brand Count'].sum()
+        tot_pur = filtered_sqp['Purchases: Total Count'].sum()
+        br_pur = filtered_sqp['Purchases: Brand Count'].sum()
         fig_pie_pur = go.Figure(data=[go.Pie(
-            labels=['Brand Orders', 'Competitor Market Share'],
+            labels=['Brand Active Volume', 'Competitor Category Share'],
             values=[br_pur, tot_pur - br_pur],
             hole=.4,
             marker=dict(colors=[HEX_DEEP_BLUE, HEX_LIGHT_BLUE])
         )])
-        fig_pie_pur.update_layout(title="Global Order Volume Breakout", template="plotly_white")
+        fig_pie_pur.update_layout(title="Global Order Market Share Allocation", template="plotly_white")
         st.plotly_chart(fig_pie_pur, use_container_width=True)
 
 # ---------------------------------------------------------------------------------
-# TAB 2: SALES DRIVERS & SEO TARGETS
+# TAB 2: SALES DRIVERS & SEO STRONGHOLDS
 # ---------------------------------------------------------------------------------
 with tabs[1]:
-    st.markdown("<span class='usecase-tag'>Use Case 1 & 3: Top Sales Drivers & SEO Listing Optimization</span>", unsafe_allow_html=True)
-    st.subheader("💎 High-Yield Brand Strongholds & SEO Core Keywords")
+    st.markdown("<span class='usecase-tag'>Use Case 1 & 3: Top Search Queries Driving Sales & Visibility Expansion</span>", unsafe_allow_html=True)
+    st.subheader("💎 High-Yield Brand Organic Strongholds & Core SEO Placement Terms")
     
     st.markdown("""<div class='strategic-box'>
-        <b>📋 Action Item:</b> These search queries represent terms where your products are converting smoothly. Ensure these keywords are permanently embedded in your **Product Titles, Bullet Points, and Backend Search Terms** to secure organic ranking weights.
+        <b>📋 Execution Playbook:</b> These keywords represent search queries where your brand is successfully indexing and capturing real orders. Protect these aggressively by ensuring they are woven deeply into your **listing Titles, Bullet Points, and Backend Search Keywords**.
     </div>""", unsafe_allow_html=True)
     
-    top_sales_df = filtered_df[filtered_df['Purchases: Brand Count'] > 0].sort_values(by='Purchases: Brand Count', ascending=False).head(15)
+    top_sales_df = filtered_sqp[filtered_sqp['Purchases: Brand Count'] > 0].sort_values(by='Purchases: Brand Count', ascending=False).head(15)
     
     st.dataframe(
         top_sales_df[['Search Query', 'Portfolio Segment', 'Search Query Volume', 'Purchases: Brand Count', 'Purchases: Brand Share %', 'Purchases: Brand Price (Median)']],
         use_container_width=True,
         column_config={
             "Search Query": "Indexed Search Keyword",
-            "Portfolio Segment": "Product Line Group",
+            "Portfolio Segment": "Product Cluster Category",
             "Search Query Volume": st.column_config.NumberColumn("Monthly Search Volume", format="%d"),
-            "Purchases: Brand Count": st.column_config.NumberColumn("Brand Orders Placed", format="%d"),
-            "Purchases: Brand Share %": st.column_config.NumberColumn("Brand Order Share %", format="%.2f%%"),
+            "Purchases: Brand Count": st.column_config.NumberColumn("Brand Orders Confirmed", format="%d"),
+            "Purchases: Brand Share %": st.column_config.NumberColumn("Your Order Share %", format="%.2f%%"),
             "Purchases: Brand Price (Median)": st.column_config.NumberColumn("Your Price Point", format="$%.2f")
         }
     )
@@ -250,24 +245,24 @@ with tabs[1]:
 # TAB 3: PPC CONQUESTING OPPORTUNITIES
 # ---------------------------------------------------------------------------------
 with tabs[2]:
-    st.markdown("<span class='usecase-tag'>Use Case 2 & 6: Missing Keyword Harvesting & Aggressive Bidding B2B/B2C</span>", unsafe_allow_html=True)
-    st.subheader("🎯 High-Volume Conquesting Targets (Low Brand Share)")
+    st.markdown("<span class='usecase-tag'>Use Case 2 & 6: Missing Keyword Discovery & Campaign Bid Optimization</span>", unsafe_allow_html=True)
+    st.subheader("🎯 High-Volume Conquesting Ad Group Targets (Low Share Gaps)")
     
     st.markdown("""<div class='strategic-box'>
-        <b>📋 Strategy Protocol:</b> Shoppers are searching these keywords heavily, but your brand is currently captured under 5% of purchase transactions. Deploy these targets directly into **Sponsored Products Search-Only Manual Exact campaigns** with a top-of-search premium bid multiplier.
+        <b>📋 PPC Protocol:</b> High search volume fields where your products hold under 5% market share. Launch clean **Sponsored Products Search-Only Manual Exact campaigns** for these targets immediately. Do not bleed ad dollars via semi-auto targeting vectors here.
     </div>""", unsafe_allow_html=True)
     
-    conq_df = filtered_df[(filtered_df['Search Query Volume'] >= 500) & (filtered_df['Purchases: Brand Share %'] < 5)].sort_values(by='Search Query Volume', ascending=False).head(15)
+    conq_df = filtered_sqp[(filtered_sqp['Search Query Volume'] >= 500) & (filtered_sqp['Purchases: Brand Share %'] < 5)].sort_values(by='Search Query Volume', ascending=False).head(15)
     
     st.dataframe(
         conq_df[['Search Query', 'Search Query Volume', 'Purchases: Total Count', 'Clicks: Price (Median)', 'Purchases: Brand Share %']],
         use_container_width=True,
         column_config={
-            "Search Query": "Conquesting Keyword Target",
-            "Search Query Volume": st.column_config.NumberColumn("Search Volume Market Size", format="%d"),
-            "Purchases: Total Count": st.column_config.NumberColumn("Total Segment Orders Available", format="%d"),
-            "Clicks: Price (Median)": st.column_config.NumberColumn("Category Competitor Price", format="$%.2f"),
-            "Purchases: Brand Share %": st.column_config.NumberColumn("Current Brand Share", format="%.2f%%")
+            "Search Query": "Target Conquesting Keyword",
+            "Search Query Volume": st.column_config.NumberColumn("Total Search Volume Size", format="%d"),
+            "Purchases: Total Count": st.column_config.NumberColumn("Total Segment Market Orders", format="%d"),
+            "Clicks: Price (Median)": st.column_config.NumberColumn("Category Competitor Median Price", format="$%.2f"),
+            "Purchases: Brand Share %": st.column_config.NumberColumn("Your Purchase Share %", format="%.2f%%")
         }
     )
     
@@ -285,88 +280,131 @@ with tabs[2]:
     st.plotly_chart(fig_bubble, use_container_width=True)
 
 # ---------------------------------------------------------------------------------
-# TAB 4: LISTING CTR FRICTION
+# TAB 4: LISTING CTR FRICTION DIAGNOSTICS
 # ---------------------------------------------------------------------------------
 with tabs[3]:
-    st.markdown("<span class='usecase-tag'>Use Case 4 & 9: Click-Through Rate & Listing Presentation Diagnostic</span>", unsafe_allow_html=True)
-    st.subheader("🖱️ High Impression Count but Low Click Capture Optimization")
+    st.markdown("<span class='usecase-tag'>Use Case 4: Listing Presentation & Click-Through Rate Optimization</span>", unsafe_allow_html=True)
+    st.subheader("🖱️ High Impression Count with Depressed Click Capture Rates")
     
     st.markdown("""<div class='strategic-box' style='border-left-color: #3A414B;'>
-        <b>⚠️ Listing Presentation Flag:</b> Your impressions are high but click rates are lagging behind category standards. This means your **Main Product Image, Listing Title, Coupon Badge, or Star-Rating Count** isn't turning window shoppers into active page visitors. Review listing creatives.
+        <b>⚠️ CTR Friction Alert:</b> Your listings are rendering impressions but failing to generate the corresponding volume of click traffic. Shoppers see your offer but skip past it. Review your **Main Image asset quality, Listing Title Clarity, or review rating differentials** vs competitors.
     </div>""", unsafe_allow_html=True)
     
-    # Filter keywords with high impressions but low click share
-    ctr_friction_df = filtered_df[(filtered_df['Impressions: Brand Count'] > 500) & (filtered_df['Clicks: Brand Share %'] < 5)].sort_values(by='Impressions: Brand Count', ascending=False).head(15)
+    ctr_friction_df = filtered_sqp[(filtered_sqp['Impressions: Brand Count'] > 300) & (filtered_sqp['Clicks: Brand Share %'] < 5)].sort_values(by='Impressions: Brand Count', ascending=False).head(15)
     
     st.dataframe(
         ctr_friction_df[['Search Query', 'Impressions: Brand Count', 'Impressions: Brand Share %', 'Clicks: Brand Count', 'Clicks: Brand Share %']],
         use_container_width=True,
         column_config={
-            "Search Query": "Search Term Terminus",
-            "Impressions: Brand Count": st.column_config.NumberColumn("Brand Impressions Earned", format="%d"),
+            "Search Query": "Search Term",
+            "Impressions: Brand Count": st.column_config.NumberColumn("Brand Impressions", format="%d"),
             "Impressions: Brand Share %": st.column_config.NumberColumn("Impression Share %", format="%.2f%%"),
-            "Clicks: Brand Count": st.column_config.NumberColumn("Actual Brand Clicks", format="%d"),
+            "Clicks: Brand Count": st.column_config.NumberColumn("Brand Click Traffic", format="%d"),
             "Clicks: Brand Share %": st.column_config.NumberColumn("Click Share %", format="%.2f%%")
         }
     )
 
 # ---------------------------------------------------------------------------------
-# TAB 5: CHECKOUT CONVERSION GAPS
+# TAB 5: CHECKOUT CONVERSION LEAKAGE
 # ---------------------------------------------------------------------------------
 with tabs[4]:
-    st.markdown("<span class='usecase-tag'>Use Case 5 & 6: Conversion Gaps & Wasted Ad Spend Leakage</span>", unsafe_allow_html=True)
-    st.subheader("🚨 Budget Alarms: Clicks without Purchases (Negative Match Isolation)")
+    st.markdown("<span class='usecase-tag'>Use Case 5 & 6: Fixing Funnel Conversion Gaps & Stopping Ad Leakage</span>", unsafe_allow_html=True)
+    st.subheader("🚨 Budget Wasted Spend Neutralizer: Clicks without Purchases")
     
     st.markdown("""<div class='strategic-box' style='border-left-color: crimson;'>
-        <b>❌ Ad Spend Leakage Alert:</b> These keyword targets generated notable brand click traffic in June 2026 but resulted in <b>zero absolute purchases</b>. You are paying for ad clicks that fail to purchase. Action: Apply <b>Exact Negative Matches</b> immediately to save margin.
+        <b>❌ Ad Margin Bleed Warning:</b> Keywords generating significant paid click costs but returning **0 absolute sales**. Action: Map these terms directly into your **PPC campaigns as Negative Exact matches** immediately to rescue operating capital.
     </div>""", unsafe_allow_html=True)
     
-    leakage_df = filtered_df[(filtered_df['Clicks: Brand Count'] >= 3) & (filtered_df['Purchases: Brand Count'] == 0)].sort_values(by='Clicks: Brand Count', ascending=False)
+    leakage_df = filtered_sqp[(filtered_sqp['Clicks: Brand Count'] >= 3) & (filtered_sqp['Purchases: Brand Count'] == 0)].sort_values(by='Clicks: Brand Count', ascending=False)
     
     if not leakage_df.empty:
         st.dataframe(
             leakage_df[['Search Query', 'Search Query Volume', 'Clicks: Brand Count', 'Cart Adds: Brand Count', 'Clicks: Brand Price (Median)']],
             use_container_width=True,
             column_config={
-                "Search Query": "Wasted Traffic Term",
+                "Search Query": "High Leakage Search Query",
                 "Search Query Volume": st.column_config.NumberColumn("Search Volume", format="%d"),
                 "Clicks: Brand Count": st.column_config.NumberColumn("Wasted Clicks Paid", format="%d"),
-                "Cart Adds: Brand Count": st.column_config.NumberColumn("Abandoned Cart Counts", format="%d"),
-                "Clicks: Brand Price (Median)": st.column_config.NumberColumn("Your Mid Price Point", format="$%.2f")
+                "Cart Adds: Brand Count": st.column_config.NumberColumn("Abandoned Carts", format="%d"),
+                "Clicks: Brand Price (Median)": st.column_config.NumberColumn("Your Selling Price", format="$%.2f")
             }
         )
     else:
-        st.success("🎉 Safe Zone! No budget leak queries tracked above criteria.")
+        st.success("🎉 Safe Zone! No budget leak queries tracked above current filtering criteria.")
 
 # ---------------------------------------------------------------------------------
-# TAB 6: SUPPLY CHAIN LOGISTICS SPEED
+# TAB 6: ASIN CATALOG PERFORMANCE EXPLORER
 # ---------------------------------------------------------------------------------
 with tabs[5]:
-    st.markdown("<span class='usecase-tag'>Use Case 8 & 10: Seasonality, Fulfillment Velocity & Inventory Constraints</span>", unsafe_allow_html=True)
-    st.subheader("🚚 Customer Shipping Preference Distribution Curves")
+    st.markdown("<span class='usecase-tag'>Use Case 4, 5 & 9: Tactical Product Optimization (ASIN View Detail)</span>", unsafe_allow_html=True)
+    st.subheader("📦 Product Catalog Conversion Metric Performance Grid")
     
-    # Extract total fulfillment parameters
-    sd_clicks = filtered_df['Clicks: Same Day Shipping Speed'].sum()
-    d1_clicks = filtered_df['Clicks: 1D Shipping Speed'].sum()
-    d2_clicks = filtered_df['Clicks: 2D Shipping Speed'].sum()
+    st.markdown("""<div class='strategic-box'>
+        <b>📋 ASIN Diagnostic Matrix Guide:</b>
+        *   <b>High Click Count + Deflated Conversion Rate %:</b> Listing detail friction. Add A+ Content, run clip-on vouchers, or address review objections.
+        *   <b>Top Tier Conversion Rate % + Deflated Impressions:</b> High intent hero. Boost targeted exact PPC visibility to scale traffic velocity.
+    </div>""", unsafe_allow_html=True)
+    
+    sorted_catalog = df_cat.sort_values(by='Purchases: Search Traffic Sales', ascending=False)
+    
+    st.dataframe(
+        sorted_catalog[['ASIN', 'Impressions: Impressions', 'Clicks: Clicks', 'Clicks: Click Rate (CTR)', 'Purchases: Purchases', 'Purchases: Conversion Rate %', 'Purchases: Search Traffic Sales', 'Impressions: Price (Median)']],
+        use_container_width=True,
+        column_config={
+            "ASIN": "Amazon Catalog ASIN ID",
+            "Impressions: Impressions": st.column_config.NumberColumn("Impressions Earned", format="%d"),
+            "Clicks: Clicks": st.column_config.NumberColumn("Clicks Tracked", format="%d"),
+            "Clicks: Click Rate (CTR)": st.column_config.NumberColumn("ASIN CTR %", format="%.2f%%"),
+            "Purchases: Purchases": st.column_config.NumberColumn("Units Ordered", format="%d"),
+            "Purchases: Conversion Rate %": st.column_config.NumberColumn("Product Conversion Rate", format="%.2f%%"),
+            "Purchases: Search Traffic Sales": st.column_config.NumberColumn("Search Sales Revenue", format="$%.2f"),
+            "Impressions: Price (Median)": st.column_config.NumberColumn("Median Sales Price", format="$%.2f")
+        }
+    )
+    
+    st.markdown("---")
+    
+    fig_cat_bar = px.bar(
+        sorted_catalog.head(10),
+        x='ASIN',
+        y='Purchases: Search Traffic Sales',
+        color='Purchases: Conversion Rate %',
+        title="Top 10 ASIN Sales Drivers by Search Revenue (Color Depth Signals Unit CVR % Performance)",
+        color_continuous_scale=[HEX_LIGHT_BLUE, HEX_VIBRANT_BLUE, HEX_DEEP_BLUE],
+        labels={'Purchases: Search Traffic Sales': 'Search Sales Revenue ($)', 'Purchases: Conversion Rate %': 'CVR %'}
+    )
+    fig_cat_bar.update_layout(template="plotly_white")
+    st.plotly_chart(fig_cat_bar, use_container_width=True)
+
+# ---------------------------------------------------------------------------------
+# TAB 7: FULFILLMENT LOGISTICS SPEEDS
+# ---------------------------------------------------------------------------------
+with tabs[6]:
+    st.markdown("<span class='usecase-tag'>Use Case 8 & 10: Fulfillment Distribution & Seasonality Safeguards</span>", unsafe_allow_html=True)
+    st.subheader("🚚 Platform Shipping Speed Velocity Distributions")
+    
+    sd_clicks = filtered_sqp['Clicks: Same Day Shipping Speed'].sum()
+    d1_clicks = filtered_sqp['Clicks: 1D Shipping Speed'].sum()
+    d2_clicks = filtered_sqp['Clicks: 2D Shipping Speed'].sum()
     
     col_l1, col_l2 = st.columns([2, 3])
     with col_l1:
         fig_ship_pie = go.Figure(data=[go.Pie(
-            labels=['Same Day Delivery', '1-Day Shipping Express', '2-Day Standard Prime'],
+            labels=['Same Day Fast-Track', '1-Day Express Shipping', '2-Day Standard Delivery'],
             values=[sd_clicks, d1_clicks, d2_clicks],
+            hole=.3,
             marker=dict(colors=[HEX_DEEP_BLUE, HEX_VIBRANT_BLUE, HEX_LIGHT_BLUE])
         )])
-        fig_ship_pie.update_layout(title="Logistics Allocation Model", template="plotly_white")
+        fig_ship_pie.update_layout(title="Logistics Allocation Breakout Chart", template="plotly_white")
         st.plotly_chart(fig_ship_pie, use_container_width=True)
         
     with col_l2:
         st.markdown(f"""<div class='kpi-card' style='border-top-color: {HEX_DARK_SLATE};'>
-            <h4>📦 Supply Chain & Inventory Warning</h4>
-            <p>Customer conversion velocity is directly tied to FBA Prime distribution speeds. When inventory drops out of regional hubs down to standard 2-Day speeds, conversion drop-off spikes.</p>
+            <h4>📦 FBA Inventory Regional Positioning Takeaway</h4>
+            <p>Customer acquisition conversion metrics are directly correlated with FBA warehouse distribution levels. When regional out-of-stocks force delivery estimates out to standard 2-Day speeds, your funnel acquisition efficiency drops significantly.</p>
             <ul>
-                <li><b>Same Day Express Volume:</b> {sd_clicks:,} clicks</li>
-                <li><b>1-Day Fast-Track Volume:</b> {d1_clicks:,} clicks</li>
-                <li><b>2-Day Regular Volume:</b> {d2_clicks:,} clicks</li>
+                <li><b>Same Day Delivery Traffic Size:</b> {sd_clicks:,} clicks</li>
+                <li><b>1-Day Prime Express Traffic Size:</b> {d1_clicks:,} clicks</li>
+                <li><b>2-Day Regular Shipping Traffic Size:</b> {d2_clicks:,} clicks</li>
             </ul>
         </div>""", unsafe_allow_html=True)
