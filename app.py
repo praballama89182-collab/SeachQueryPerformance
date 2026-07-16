@@ -7,7 +7,7 @@ from collections import Counter
 import re
 
 # ---------------------------------------------------------------------------------
-# 🎨 BRAND-AGNOSTIC GLOBAL THEME & PALETTE SETUP
+# 🎨 UNIVERSAL BRAND-AGNOSTIC THEME & PALETTE SETUP
 # ---------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MerchantSpring | Advanced Amazon SQP & Catalog Engine",
@@ -16,6 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Premium executive palette
 HEX_BG = "#FBFBFC"
 HEX_LIGHT_BLUE = "#D5DEE7"
 HEX_DARK_SLATE = "#3A414B"
@@ -87,7 +88,7 @@ def extract_dynamic_segments(queries, num_clusters=3):
     def assign_segment(query):
         query_str = str(query).lower()
         
-        # Priority Rule: Diaper Niche Specific mapping
+        # Priority Rule: Diaper Niche Specific mapping (If matched)
         if any(x in query_str for x in ['swim', 'swimm', 'pool', 'water']):
             return 'Swim Diapers'
         elif any(x in query_str for x in ['bamboo', 'viscose', 'natural', 'organic', 'toes']):
@@ -158,16 +159,21 @@ sqp_file = st.sidebar.file_uploader("1️⃣ Upload Brand SQP CSV Report", type=
 catalog_file = st.sidebar.file_uploader("2️⃣ Upload Catalog Performance CSV Report", type=["csv"])
 
 if not sqp_file or not catalog_file:
-    st.info("👋 **Console Parked:** Please upload your search data files to dynamic cluster category terms.")
+    st.info("👋 **Console Parked:** Please upload your search data files to dynamically cluster category terms.")
     st.stop()
 
 df_sqp = process_sqp_data(sqp_file)
 df_cat = process_catalog_data(catalog_file)
 
-# Dynamic volume threshold calculation to keep visual clean
+# Global Filters
 st.sidebar.markdown("### 🔍 Live Scope Filters")
 med_val = int(df_sqp['Search Query Volume'].median())
-vol_threshold = st.sidebar.slider("Minimum Search Volume", int(df_sqp['Search Query Volume'].min()), int(df_sqp['Search Query Volume'].max()), min(100, med_val))
+vol_threshold = st.sidebar.slider(
+    "Minimum Search Volume", 
+    int(df_sqp['Search Query Volume'].min()), 
+    int(df_sqp['Search Query Volume'].max()), 
+    value=min(100, med_val)
+)
 filtered_sqp = df_sqp[df_sqp['Search Query Volume'] >= vol_threshold]
 
 
@@ -210,7 +216,7 @@ with tabs[0]:
         0
     )
     
-    # Sort and gather the top performance clusters
+    # Sort and dynamically extract the top performing clusters from this specific data
     sorted_segments = seg_perf.sort_values(by='Purchases: Brand Count', ascending=False)
     
     top_cluster_1 = sorted_segments.iloc[0]['Portfolio Segment'] if len(sorted_segments) > 0 else "N/A"
@@ -302,27 +308,32 @@ with tabs[1]:
 
 
 # ---------------------------------------------------------------------------------
-# TAB 3: PPC CONQUESTING OPPORTUNITIES
+# TAB 3: PPC CONQUESTING OPPORTUNITIES (Filtered for established >0.1% Share)
 # ---------------------------------------------------------------------------------
 with tabs[2]:
-    st.markdown("<span class='usecase-tag'>Missing Keyword Discovery & Campaign Bid Optimization</span>", unsafe_allow_html=True)
-    st.subheader("🎯 High-Volume Conquesting Ad Group Targets (Low Share Gaps)")
+    st.markdown("<span class='usecase-tag'>Active Opportunities (>0.1% Market Share)</span>", unsafe_allow_html=True)
+    st.subheader("🎯 High-Volume Conquesting Targets")
     
     st.markdown("""<div class='strategic-box'>
-        <b>📋 PPC Protocol:</b> High search volume fields where your products hold under 5% market share. Launch clean **Sponsored Products Search-Only Manual Exact campaigns** for these targets immediately. Do not bleed ad dollars via semi-auto targeting vectors here.
+        <b>📋 PPC Conquesting Protocol:</b> Showing high search volume keywords where your brand has established a foothold 
+        (<b>Purchase Share > 0.1%</b>) but still holds less than 20% overall share. Launch exact manual campaigns on these targets to scale up.
     </div>""", unsafe_allow_html=True)
     
-    conq_df = filtered_sqp[(filtered_sqp['Search Query Volume'] >= 500) & (filtered_sqp['Purchases: Brand Share %'] < 5)].sort_values(by='Search Query Volume', ascending=False).head(15)
+    conq_df = filtered_sqp[
+        (filtered_sqp['Purchases: Brand Share %'] > 0.1) & 
+        (filtered_sqp['Purchases: Brand Share %'] < 20.0)
+    ].sort_values(by='Search Query Volume', ascending=False).head(20)
     
     st.dataframe(
-        conq_df[['Search Query', 'Search Query Volume', 'Purchases: Total Count', 'Clicks: Price (Median)', 'Purchases: Brand Share %']],
+        conq_df[['Search Query', 'Search Query Volume', 'Impressions: Brand Share %', 'Clicks: Brand Share %', 'Purchases: Brand Share %', 'Clicks: Price (Median)']],
         use_container_width=True,
         column_config={
-            "Search Query": "Target Conquesting Keyword",
-            "Search Query Volume": st.column_config.NumberColumn("Total Search Volume Size", format="%d"),
-            "Purchases: Total Count": st.column_config.NumberColumn("Total Segment Market Orders", format="%d"),
-            "Clicks: Price (Median)": st.column_config.NumberColumn("Category Competitor Median Price", format="$%.2f"),
-            "Purchases: Brand Share %": st.column_config.NumberColumn("Your Purchase Share %", format="%.2f%%")
+            "Search Query": "Opportunity Keyword",
+            "Search Query Volume": st.column_config.NumberColumn("Monthly Search Volume", format="%d"),
+            "Impressions: Brand Share %": st.column_config.NumberColumn("Your Impression Share", format="%.2f%%"),
+            "Clicks: Brand Share %": st.column_config.NumberColumn("Your Click Share", format="%.2f%%"),
+            "Purchases: Brand Share %": st.column_config.NumberColumn("Your Purchase Share", format="%.2f%%"),
+            "Clicks: Price (Median)": st.column_config.NumberColumn("Market Median Price", format="$%.2f")
         }
     )
     
@@ -330,11 +341,12 @@ with tabs[2]:
     fig_bubble = px.scatter(
         conq_df,
         x="Search Query Volume",
-        y="Purchases: Total Count",
-        size="Purchases: Total Count",
+        y="Purchases: Brand Share %",
+        size="Search Query Volume",
         hover_name="Search Query",
-        color_discrete_sequence=[HEX_VIBRANT_BLUE],
-        title="High Velocity Category Traffic Gaps"
+        color="Clicks: Price (Median)",
+        color_continuous_scale="Viridis",
+        title="Opportunity Keywords: Volume vs Your Share (Color maps Market Median Price)"
     )
     fig_bubble.update_layout(template="plotly_white")
     st.plotly_chart(fig_bubble, use_container_width=True)
@@ -374,7 +386,7 @@ with tabs[4]:
     st.subheader("🚨 Budget Wasted Spend Neutralizer: Clicks without Purchases")
     
     st.markdown("""<div class='strategic-box' style='border-left-color: crimson;'>
-        <b>❌ Ad Margin Bleed Warning:</b> Keywords generating significant paid click costs but returning **0 absolute sales**. Action: Map these terms directly into your **PPC campaigns as Negative Exact matches** immediately to rescue operating capital.
+        <b>❌ Ad Margin Bleed Warning:</b> Keywords generating significant brand click traffic but returning **0 absolute sales**. Action: Map these terms directly into your **PPC campaigns as Negative Exact matches** immediately to rescue operating capital.
     </div>""", unsafe_allow_html=True)
     
     leakage_df = filtered_sqp[(filtered_sqp['Clicks: Brand Count'] >= 3) & (filtered_sqp['Purchases: Brand Count'] == 0)].sort_values(by='Clicks: Brand Count', ascending=False)
@@ -386,7 +398,7 @@ with tabs[4]:
             column_config={
                 "Search Query": "High Leakage Search Query",
                 "Search Query Volume": st.column_config.NumberColumn("Search Volume", format="%d"),
-                "Clicks: Brand Count": st.column_config.NumberColumn("Wasted Clicks Paid", format="%d"),
+                "Clicks: Brand Count": st.column_config.NumberColumn("Wasted Clicks", format="%d"),
                 "Cart Adds: Brand Count": st.column_config.NumberColumn("Abandoned Carts", format="%d"),
                 "Clicks: Brand Price (Median)": st.column_config.NumberColumn("Your Selling Price", format="$%.2f")
             }
